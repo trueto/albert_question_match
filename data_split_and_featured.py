@@ -15,7 +15,10 @@ class DataProcess:
         self.paper_dataset_path = paper_dataset_path
         if not os.path.exists(paper_dataset_path):
             os.mkdir(paper_dataset_path)
-
+        # Setup logging
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                            datefmt='%m/%d/%Y %H:%M:%S',
+                            level=logging.INFO)
 
     def split_data(self):
         train_dev_df, test_df = train_test_split(self.data_df,test_size=0.1,
@@ -58,7 +61,7 @@ class DataProcess:
                           pos_rate:float,
                           name:str):
 
-        df_name = "{}_{}".format(neg_rate,pos_rate) + name
+        df_name = "{}_{}_".format(neg_rate,pos_rate) + name
         df_path = os.path.join(self.paper_dataset_path, df_name)
         if os.path.exists(df_path):
             self.sample_with_score = self.load_df(df_name)
@@ -67,7 +70,6 @@ class DataProcess:
         # print(data_df.head())
         data_df['score'] = data_df.apply(lambda df:
                                          self.similarity(df['question1'],df['question2']),axis=1)
-        print(data_df[(data_df['label']==0)]['score'].mean())
         ## get the sample whose sequence similarity is more than neg_rate but label is 0
         negative_df = data_df[(data_df['score']>=neg_rate) & (data_df['label'] == 0)]
         ## get the sample whose sequence similarity is less than pos_rate but label is 1
@@ -104,7 +106,13 @@ if __name__ == '__main__':
     data_process.exchange_a_b(data_process.train_df,'train_b_a.csv')
 
     ## get the special sample
+    # label 0
+    # 0.3708017028254289 mean
+    # 0.3333 median
+    # label 1
+    # 0.5324387016848364 mean
+    # 0.5263 median
     data_process.similar_unsimilar(data_process.train_df,
-                                   neg_rate=0.8,
-                                   pos_rate=0.2,
+                                   neg_rate=0.4,
+                                   pos_rate=0.5,
                                    name='sample_with_score.csv')
