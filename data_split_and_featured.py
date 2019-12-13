@@ -56,7 +56,7 @@ class DataProcess:
         self.save_df(new_df,name)
         logger.info("save data as {}".format(df_path))
 
-    def similar_unsimilar(self,
+    def sample_with_score(self,
                           data_df: pd.DataFrame,
                           neg_rate:float,
                           pos_rate:float,
@@ -71,9 +71,11 @@ class DataProcess:
         # print(data_df.head())
         data_df['score'] = data_df.apply(lambda df:
                                          self.similarity(df['question1'],df['question2']),axis=1)
-        data_df['longest_match'] = data_df.apply(lambda df:
-                                         self.longest_match(df['question1'],df['question2']),axis=1)
-        self.save_df(data_df,'train_score_longest_text.csv')
+
+
+        # data_df['longest_match'] = data_df.apply(lambda df:
+        #                                  self.longest_match(df['question1'],df['question2']),axis=1)
+        # self.save_df(data_df,'train_score_longest_text.csv')
         ## get the sample whose sequence similarity is more than neg_rate but label is 0
         negative_df = data_df[(data_df['score']>=neg_rate) & (data_df['label'] == 0)]
         ## get the sample whose sequence similarity is less than pos_rate but label is 1
@@ -82,6 +84,33 @@ class DataProcess:
         temp_df = pd.concat([negative_df,positive_df],ignore_index=True)
         self.sample_with_score = temp_df
         self.save_df(temp_df,df_name)
+        logger.info("save data at {}".format(df_path))
+
+    def score_longest_text(self,
+                          data_df:pd.DataFrame,
+                          name: str):
+
+        df_name = name
+        df_path = os.path.join(self.paper_dataset_path, df_name)
+        if os.path.exists(df_path):
+            self.score_longest_text = self.load_df(df_name)
+            logger.info("load data from {}".format(df_path))
+            return
+        # print(data_df.head())
+        data_df['score'] = data_df.apply(lambda df:
+                                         self.similarity(df['question1'], df['question2']), axis=1)
+
+        logging.info("\nlabel 0 \nmedian:\t{}\nmean{}".format(
+            data_df[data_df['label']==0]['score'].median(),
+            data_df[data_df['label'] == 0]['score'].mean()
+        ))
+        logging.info("\nlabel 1 \nmedian:\t{}\nmean{}".format(
+            data_df[data_df['label'] == 1]['score'].median(),
+            data_df[data_df['label'] == 1]['score'].mean()
+        ))
+        data_df['longest_match'] = data_df.apply(lambda df:
+                                                 self.longest_match(df['question1'], df['question2']), axis=1)
+        self.save_df(data_df, df_name)
         logger.info("save data at {}".format(df_path))
 
     def sample_distribution(self,df:pd.DataFrame,name):
@@ -182,13 +211,8 @@ if __name__ == '__main__':
     data_process.exchange_a_b(data_process.train_df,'train_b_a.csv')
 
     ## get the special sample
-    # label 0
-    # 0.3708017028254289 mean
-    # 0.3333 median
-    # label 1
-    # 0.5324387016848364 mean
-    # 0.5263 median
-    data_process.similar_unsimilar(data_process.train_df,
+
+    data_process.sample_with_score(data_process.train_df,
                                    neg_rate=0.4,
                                    pos_rate=0.5,
                                    name='sample_with_score.csv')
@@ -210,9 +234,32 @@ if __name__ == '__main__':
         "aids": "艾滋病|aids|艾滋|HIV|hiv",
         "breast_cancer": "乳腺癌|乳腺增生",
         "hypertension": "高血压",
-        "hepatitis" : "乙肝"
+        "hepatitis" : "乙肝|乙肝表面抗体"
     }
     data_process.delete_seed_words(data_process.train_df,'train_and_noseeds.csv')
     data_process.exchange_a_b(data_process.train_df_and_noseeds,'train_and_noseeds_b_a.csv')
+
+    ## score with longest text
+    # label 0
+    # 0.3708017028254289 mean
+    # 0.3333 median
+    # label 1
+    # 0.5324387016848364 mean
+    # 0.5263 median
+    # data_process.score_longest_text(data_process.train_df,'train_score_longest_text.csv')
+
+    # label 0
+    # 0.23685070635721756 mean
+    # 0.2 median
+    # label 1
+    # 0.4372390857284495 mean
+    # 0.4242 median
+
+    data_df = pd.read_csv("data/train_no_seeds.csv")
+    data_process.score_longest_text(data_df,'train_no_seeds_longest_text.csv')
+
+    # data_process.score_longest_text(data_process.train_df_and_noseeds,'train_df_and_noseeds_score.csv')
+
+
 
 
