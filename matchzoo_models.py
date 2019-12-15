@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.base import BaseEstimator,ClassifierMixin
 from sklearn.metrics import classification_report
-
+mz.metrics
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
@@ -90,13 +90,13 @@ class MacthZooClassifer(BaseEstimator,ClassifierMixin):
         dev_pack_raw = self._data_pack(X_dev,y_dev, stage='dev')
         logger.info('data loaded as `train_pack_raw` `dev_pack_raw`')
 
-        preprocessor = MATCHZOO_MODELS[self.model_type].get_default_preprocessor()
-        train_pack_processed = preprocessor.fit_transform(train_pack_raw)
-        dev_pack_processed = preprocessor.transform(dev_pack_raw)
-        logger.info("\n preprocessor.context:\n{}".format(preprocessor.context))
+        self.preprocessor = MATCHZOO_MODELS[self.model_type].get_default_preprocessor()
+        train_pack_processed = self.preprocessor.fit_transform(train_pack_raw)
+        dev_pack_processed = self.preprocessor.transform(dev_pack_raw)
+        logger.info("\n preprocessor.context:\n{}".format(self.preprocessor.context))
 
         fasttext_embedding = mz.datasets.embeddings.load_fasttext_embedding(language=self.language)
-        term_index = preprocessor.context['vocab_unit'].state['term_index']
+        term_index = self.preprocessor.context['vocab_unit'].state['term_index']
         embedding_matrix = fasttext_embedding.build_matrix(term_index)
         l2_norm = np.sqrt((embedding_matrix * embedding_matrix).sum(axis=1))
         embedding_matrix = embedding_matrix / l2_norm[:, np.newaxis]
@@ -155,51 +155,56 @@ class MacthZooClassifer(BaseEstimator,ClassifierMixin):
             save_all=True
         )
         trainer.run()
-        save_dict = {
-            "model":model,
-            "preprocessor": preprocessor,
-        }
-        joblib.dump(save_dict, os.path.join(self.model_path,'{}.joblib'.format(self.model_type)))
+        # save_dict = {
+        #     "model":model,
+        #     "preprocessor": preprocessor,
+        # }
+        # torch.save(save_dict, os.path.join(self.model_path,'{}.pt'.format(self.model_type)))
+        self.trainer = trainer
         return self
 
     def predict(self,X):
 
         test_pack_raw = self._data_pack(X, None, stage='test')
 
-        load_dict = joblib.load(os.path.join(self.model_path,'{}.joblib'.format(self.model_type)))
-        preprocessor = load_dict['preprocessor']
+        # load_dict = torch.load(os.path.join(self.model_path,'{}.pt'.format(self.model_type)))
+        # preprocessor = load_dict['preprocessor']
 
-        test_pack_processed = preprocessor.transform(test_pack_raw)
+        test_pack_processed = self.preprocessor.transform(test_pack_raw)
 
         testset = mz.dataloader.Dataset(
             data_pack=test_pack_processed,
             mode='point',
-            batch_size=self.eval_bacth_size
+            batch_size=self.eval_bacth_size,
+            shuffle=True,
+            sort=False
         )
         padding_callback = MATCHZOO_MODELS[self.model_type].get_default_padding_callback()
         testloader = mz.dataloader.DataLoader(
             dataset=testset,
-            stage='dev',
+            stage='test',
             callback=padding_callback
         )
-        model = load_dict['model']
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        state_dict = torch.load(os.path.join(self.model_path,'model.pt'),map_location=device)
-        model.load_state_dict(state_dict=state_dict)
-        model.to(device)
-
-        with torch.no_grad():
-            model.eval()
-            predictions = []
-            for batch in testloader:
-                inputs = batch[0]
-                outputs = model(inputs).detach().cpu()
-                predictions.append(outputs)
-
-            return torch.cat(predictions, dim=0).numpy()
+        return self.trainer.predict(testloader)
+        # model = load_dict['model']
+        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # state_dict = torch.load(os.path.join(self.model_path,'model.pt'),map_location=device)
+        # model.load_state_dict(state_dict=state_dict)
+        # model.to(device)
+        #
+        # with torch.no_grad():
+        #     model.eval()
+        #     predictions = []
+        #     for batch in testloader:
+        #         inputs = batch[0]
+        #         outputs = model(inputs).detach().cpu()
+        #         predictions.append(outputs)
+        #
+        #     return torch.cat(predictions, dim=0).numpy()
 
     def score(self, X, y, sample_weight=None):
         y_pred = self.predict(X)
+        y_pred = np.argmax(y_pred, axis=1)
         return classification_report(y,y_pred,digits=4)
 
     def _data_pack(self,X,y=None,stage='train'):
@@ -220,4 +225,17 @@ class MacthZooClassifer(BaseEstimator,ClassifierMixin):
 
 
 if __name__ == '__main__':
-    mzcls = MacthZooClassifer()
+    mzcls = MacthZooClassifer(model_type='esim',
+                              epochs=1)
+    # train_df = pd.read_csv('pairs_data/original/train.csv')
+    train_df = pd.read_csv('pairs_data/original/train_cut.csv')
+    X = pd.concat([train_df['question1'],train_df['question2']],axis=1,ignore_index=True)
+    y = train_df['label']
+    mzcls.fit(X,y)
+
+    # dev_df = pd.read_csv('pairs_data/original/dev.csv')
+    dev_df = pd.read_csv('pairs_data/original/dev_cut.csv')
+    X_dev = pd.concat([dev_df['question1'], dev_df['question2']], axis=1, ignore_index=True)
+    y_dev = dev_df['label']
+    logger.info(mzcls.score(X_dev,y_dev))
+

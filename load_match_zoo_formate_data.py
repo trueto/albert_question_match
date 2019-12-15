@@ -1,5 +1,6 @@
 """CHIP 2019 shared task 2 Question Pairs data loader"""
 import jieba
+import os
 import typing
 import pandas as pd
 import matchzoo
@@ -65,8 +66,9 @@ def _read_data(path, stage, task):
     return matchzoo.pack(df, task)
 
 ## Stanford Word Segmenter for chinese word space
-def stanford_seg(path):
-    data = pd.read_csv(path, error_bad_lines=False, dtype=object)
+def stanford_seg(path,stage='train'):
+    df_dir = os.path.join(path,'{}.csv'.format(stage))
+    data = pd.read_csv(df_dir, error_bad_lines=False, dtype=object)
     data = data.dropna(axis=0, how='any').reset_index(drop=True)
     data_dir = '/home/trueto/stanford_segmenter/'
     seg = StanfordSegmenter(path_to_jar=data_dir + 'stanford-segmenter.jar',
@@ -74,9 +76,38 @@ def stanford_seg(path):
                             path_to_sihan_corpora_dict=data_dir + "data",
                             path_to_model=data_dir + 'data/pku.gz',
                             path_to_dict=data_dir + "data/dict-chris6.ser.gz")
-    data['ques1_cut'] = data['question1'].apply(lambda t: seg.segment(t))
-    data['ques2_cut'] = data['question2'].apply(lambda t: seg.segment(t))
-    data.to_csv(path,index=False)
+    columns = data.columns
+    for column in columns:
+        if column in ['question1', 'question2']:
+            column_file = os.path.join(path,'cut','{}_{}.txt'.format(stage,column))
+            data[column].to_csv(column_file, index=False)
+            cut_file = os.path.join(path,'cut','{}_{}_cut.txt'.format(stage,column))
+            with open(cut_file,'w') as f:
+                f.write(seg.segment_file(column_file))
+
+def merge_text(path,stage='train'):
+    columns = ['question1','question2']
+    df_list = []
+    for column in columns:
+        file_path = os.path.join(path,'cut','{}_{}_cut.txt'.format(stage,column))
+        df = pd.read_csv(file_path,names=[column])
+        df_list.append(df)
+
+    temp_df = pd.read_csv(os.path.join(path,'{}.csv'.format(stage)))
+    df_list.append(temp_df['label'])
+    df_list.append(temp_df['category'])
+    data_df = pd.concat(df_list,axis=1,ignore_index=True)
+    data_df.columns = temp_df.columns
+    data_df.to_csv(os.path.join(path,'{}_cut.csv'.format(stage)),index=False)
+
 
 if __name__ == '__main__':
-    stanford_seg('pairs_data/original/train.csv')
+    ## 1. segmenter
+    # stanford_seg('pairs_data/original',stage='train')
+    # stanford_seg('pairs_data/original', stage='dev')
+    # stanford_seg('pairs_data/original', stage='test')
+
+    ## 2. merge txt to csv
+    merge_text('pairs_data/original',stage='train')
+    merge_text('pairs_data/original', stage='dev')
+    merge_text('pairs_data/original', stage='test')
