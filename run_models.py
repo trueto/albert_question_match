@@ -12,35 +12,45 @@ from sklearn.metrics import classification_report
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def train(model_path,output_dir):
+def train(model_type,model_path,output_dir):
     train_df = pd.read_csv('pairs_data/stage_3/train.csv')
     X_train = pd.concat([train_df['question1'],train_df['question2']],axis=1)
     y_train = train_df['label']
 
-    cls = BERTologyClassifier(model_type='albert',model_name_or_path=model_path,
+    cls = BERTologyClassifier(model_type=model_type,model_name_or_path=model_path,
                               gradient_accumulation_steps=8,logging_steps=1000,
                               save_steps=1000,output_dir=output_dir,
                               per_gpu_train_batch_size=2,per_gpu_eval_batch_size=2
                               )
     cls.fit(X_train,y_train)
 
-    train_df = pd.read_csv('pairs_data/stage_3/dev.csv')
-    X_dev = pd.concat([train_df['question1'], train_df['question2']], axis=1)
-    y_dev = train_df['label']
-    logger.info("dev results:\n{}".format(cls.score(X_dev,y_dev)))
+    # train_df = pd.read_csv('pairs_data/stage_3/dev.csv')
+    # X_dev = pd.concat([train_df['question1'], train_df['question2']], axis=1)
+    # y_dev = train_df['label']
+    # logger.info("dev results:\n{}".format(cls.score(X_dev,y_dev)))
 
-def run():
+def run_albert():
     path_list = ['albert_tiny', 'albert_base', 'albert_large', 'albert_xlarge']
     for name in path_list:
         model_path = os.path.join('albert_pretrained_models', name)
         output_path = os.path.join('albert_results', name)
-        train(model_path, output_dir=output_path)
+        train(model_type='albert',model_path=model_path, output_dir=output_path)
+
+def run_bertology():
+    name_list = ['chinese_wwm_ext','ERNIE','RoBERTa','bert-base-chinese']
+    for name in name_list:
+        model_path = os.path.join('bert_pretrained_models/', name)
+        output_path = os.path.join('bert_results', name)
+        if name == 'bert-base-chinese':
+            train(model_type='bert', model_path=name, output_dir=output_path)
+        else:
+            train(model_type='bert', model_path=model_path, output_dir=output_path)
 
 class Papaer_Approach:
 
-    def __init__(self,finetune_model_path):
+    def __init__(self,finetune_model_path,model_type):
         self.finetune_model_path = finetune_model_path
-        self.model = BERTologyClassifier(output_dir=finetune_model_path,model_type='albert')
+        self.model = BERTologyClassifier(output_dir=finetune_model_path,model_type=model_type)
     def albert_answer(self,X):
         y_pred = self.model.predict(X)
         logger.info("\nalbert y_pred:\n{}".format(y_pred[:10]))
@@ -115,12 +125,37 @@ class Papaer_Approach:
         with open(output,'w',encoding='utf8') as f:
             f.write(result)
 
-if __name__ == '__main__':
+def train_and_score_albert():
     # 1. fine tune the albert model
-    # run()
+    run_albert()
     # 2. evalute the paper approach
     dev_df = pd.read_csv('pairs_data/stage_3/dev.csv')
     X_dev = pd.concat([dev_df['question1'],dev_df['question2']],axis=1)
     y_dev = dev_df['label'].to_numpy()
-    paper_approach = Papaer_Approach(finetune_model_path='albert_results/albert_base')
-    paper_approach.score(X_dev,y_dev)
+    # ## albert
+    name_list = ['albert_tiny', 'albert_base', 'albert_large']
+    for name in name_list:
+        paper_approach = Papaer_Approach(finetune_model_path='albert_results/{}'.format(name),
+                                 model_type='albert')
+        paper_approach.score(X_dev,y_dev)
+
+def train_and_score_bert():
+    # 1. fine tune the albert model
+    run_bertology()
+    # 2. evalute the paper approach
+    dev_df = pd.read_csv('pairs_data/stage_3/dev.csv')
+    X_dev = pd.concat([dev_df['question1'],dev_df['question2']],axis=1)
+    y_dev = dev_df['label'].to_numpy()
+    # ## bert
+    name_list = ['chinese_wwm_ext','ERNIE','RoBERTa','bert-base-chinese']
+    for name in name_list:
+        paper_approach = Papaer_Approach(finetune_model_path='bert_results/{}'.format(name),
+                                 model_type='bert')
+        paper_approach.score(X_dev,y_dev)
+
+if __name__ == '__main__':
+   # train_and_score_albert()
+    train_and_score_bert()
+
+
+
