@@ -48,7 +48,9 @@ def run_bertology():
 
 class Papaer_Approach:
 
-    def __init__(self,finetune_model_path,model_type):
+    def __init__(self,finetune_model_path,model_type,mode='dev',strategy=None):
+        self.mode = mode
+        self.strategy = strategy
         self.finetune_model_path = finetune_model_path
         self.model = BERTologyClassifier(output_dir=finetune_model_path,model_type=model_type)
     def albert_answer(self,X):
@@ -93,26 +95,48 @@ class Papaer_Approach:
         return re.sub(topic_word_patten,'',text)
 
     def voting(self,X):
-        ## original
-        y_pred_0 = self.albert_answer(X)
+        y_pred = []
+        if not self.strategy:
+            ## original
+            y_pred_0 = self.albert_answer(X)
 
-        ## original similarity
-        y_pred_0_similarity = self.text_similarity_answer(X,no_topic=False)
+            colums = X.columns
+            ## exchanging the order
+            exchanging_df = pd.concat([X[colums[1]], X[colums[0]]], axis=1)
+            y_pred_1 = self.albert_answer(exchanging_df)
 
-        colums = X.columns
-        ## exchanging the order
-        exchanging_df = pd.concat([X[colums[1]],X[colums[0]]],axis=1)
-        y_pred_1 = self.albert_answer(exchanging_df)
+            ##
+            topic_out_df = self.delete_topic_words(X)
+            y_pred_2 = self.albert_answer(topic_out_df)
+            ## similarity
+            y_pred_0_similarity = self.text_similarity_answer(X,no_topic=False)
+            y_pred_2_similarity = self.text_similarity_answer(topic_out_df, no_topic=True)
+            y_pred_multiple = np.array([y_pred_0,y_pred_0_similarity,y_pred_1,y_pred_2,y_pred_2_similarity])
+            y_pred = stats.mode(y_pred_multiple)[0][0]
 
-        ##
-        topic_out_df = self.delete_topic_words(X)
-        y_pred_2 = self.albert_answer(topic_out_df)
+        if self.strategy == 'albert':
+            ## original
+            y_pred_0 = self.albert_answer(X)
 
-        y_pred_2_similarity = self.text_similarity_answer(topic_out_df,no_topic=True)
+            colums = X.columns
+            ## exchanging the order
+            exchanging_df = pd.concat([X[colums[1]], X[colums[0]]], axis=1)
+            y_pred_1 = self.albert_answer(exchanging_df)
 
-        y_pred_multiple = np.array([y_pred_0,y_pred_0_similarity,y_pred_1,y_pred_2,y_pred_2_similarity])
+            ##
+            topic_out_df = self.delete_topic_words(X)
+            y_pred_2 = self.albert_answer(topic_out_df)
+            y_pred_multiple = np.array([y_pred_0, y_pred_1, y_pred_2])
+            y_pred = stats.mode(y_pred_multiple)[0][0]
 
-        y_pred = stats.mode(y_pred_multiple)[0][0]
+        if self.strategy == 'text':
+            ## similarity
+            topic_out_df = self.delete_topic_words(X)
+            y_pred_0_similarity = self.text_similarity_answer(X, no_topic=False)
+            y_pred_2_similarity = self.text_similarity_answer(topic_out_df, no_topic=True)
+            y_pred_multiple = np.array([y_pred_0_similarity,y_pred_2_similarity])
+            y_pred = stats.mode(y_pred_multiple)[0][0]
+
         logger.info("\nvoting y_pred:\n{}".format(y_pred[:10]))
         return y_pred
 
@@ -121,7 +145,11 @@ class Papaer_Approach:
         result = classification_report(y,y_pred,digits=4)
         logger.info(result)
         name = self.finetune_model_path.split('/')[1]
-        output = '{}_results.txt'.format(name)
+        if not self.strategy:
+            output = '{}_{}_results.txt'.format(self.mode, name)
+        else:
+            output = '{}_{}_results_{}.txt'.format(self.mode, name, self.strategy)
+
         with open(output,'w',encoding='utf8') as f:
             f.write(result)
 
@@ -136,7 +164,7 @@ def train_and_score_albert():
     name_list = ['albert_tiny', 'albert_base', 'albert_large']
     for name in name_list:
         paper_approach = Papaer_Approach(finetune_model_path='albert_results/{}'.format(name),
-                                 model_type='albert')
+                                 model_type='albert',mode='dev')
         paper_approach.score(X_dev,y_dev)
 
 def train_and_score_bert():
@@ -150,12 +178,72 @@ def train_and_score_bert():
     name_list = ['chinese_wwm_ext','ERNIE','RoBERTa','bert-base-chinese']
     for name in name_list:
         paper_approach = Papaer_Approach(finetune_model_path='bert_results/{}'.format(name),
-                                 model_type='bert')
+                                 model_type='bert',mode='dev')
         paper_approach.score(X_dev,y_dev)
+
+
+def test_albert():
+    dev_df = pd.read_csv('pairs_data/stage_3/test.csv')
+    X_dev = pd.concat([dev_df['question1'], dev_df['question2']], axis=1)
+    y_dev = dev_df['label'].to_numpy()
+    # ## albert
+    name_list = ['albert_tiny', 'albert_base', 'albert_large']
+    for name in name_list:
+        paper_approach = Papaer_Approach(finetune_model_path='albert_results/{}'.format(name),
+                                         model_type='albert',mode='test')
+        paper_approach.score(X_dev, y_dev)
+
+
+def test_bert():
+    dev_df = pd.read_csv('pairs_data/stage_3/test.csv')
+    X_dev = pd.concat([dev_df['question1'], dev_df['question2']], axis=1)
+    y_dev = dev_df['label'].to_numpy()
+    # ## bert
+    name_list = ['chinese_wwm_ext', 'ERNIE', 'RoBERTa', 'bert-base-chinese']
+    for name in name_list:
+        paper_approach = Papaer_Approach(finetune_model_path='bert_results/{}'.format(name),
+                                         model_type='bert', mode='test')
+        paper_approach.score(X_dev, y_dev)
+
+
+def ablation_albert_text(strategy):
+    dev_df = pd.read_csv('pairs_data/stage_3/test.csv')
+    X_dev = pd.concat([dev_df['question1'], dev_df['question2']], axis=1)
+    y_dev = dev_df['label'].to_numpy()
+    # ## albert
+    paper_approach = Papaer_Approach(finetune_model_path='albert_results/albert_large',
+                                     model_type='albert', mode='test', strategy=strategy)
+    paper_approach.score(X_dev, y_dev)
+
+
+def ablation_data_augmentation():
+    train_df = pd.read_csv('pairs_data/ablation/train.csv')
+    X_train = pd.concat([train_df['question1'], train_df['question2']], axis=1)
+    y_train = train_df['label']
+
+    cls = BERTologyClassifier(model_type='albert', model_name_or_path='albert_pretrained_models/albert_large',
+                              gradient_accumulation_steps=8, logging_steps=1000,
+                              save_steps=1000, output_dir='albert_results/albert_large_ablation',
+                              per_gpu_train_batch_size=2, per_gpu_eval_batch_size=2
+                              )
+    cls.fit(X_train, y_train)
+
+    dev_df = pd.read_csv('pairs_data/ablation/test.csv')
+    X_dev = pd.concat([dev_df['question1'], dev_df['question2']], axis=1)
+    y_dev = dev_df['label'].to_numpy()
+    # ## albert
+    paper_approach = Papaer_Approach(finetune_model_path='albert_results/albert_large_ablation',
+                                     model_type='albert', mode='test', strategy=None)
+    paper_approach.score(X_dev, y_dev)
 
 if __name__ == '__main__':
    # train_and_score_albert()
-    train_and_score_bert()
+   # train_and_score_bert()
+   # test_albert()
+   # test_bert()
+   # ablation_albert("text")
+   # ablation_albert("albert")
+   ablation_data_augmentation()
 
 
 
