@@ -103,11 +103,11 @@ def merge_text(path,stage='train'):
 
 if __name__ == '__main__':
     ## 1. segmenter
-    # stanford_seg('pairs_data/original',stage='train')
-    # stanford_seg('pairs_data/original', stage='dev')
-    # stanford_seg('pairs_data/original', stage='test')
+    stanford_seg('pairs_data/stage_3',stage='train')
+    stanford_seg('pairs_data/stage_3', stage='dev')
+    stanford_seg('pairs_data/stage_3', stage='test')
 
     ## 2. merge txt to csv
-    merge_text('pairs_data/original',stage='train')
-    merge_text('pairs_data/original', stage='dev')
-    merge_text('pairs_data/original', stage='test')
+    merge_text('pairs_data/stage_3',stage='train')
+    merge_text('pairs_data/stage_3', stage='dev')
+    merge_text('pairs_data/stage_3', stage='test')

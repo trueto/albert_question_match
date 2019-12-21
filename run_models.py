@@ -77,11 +77,18 @@ class Papaer_Approach:
                 return 0
             if score > 0.5263:
                 return 1
-        ## if above not return, then randomly return the label
-        if random.random() > 0.5:
-            return 1
+        if not self.strategy:
+            ## if above not return, then randomly return the label
+            if random.random() > 0.5:
+                return 2
+            else:
+                return 3
         else:
-            return 0
+            ## if above not return, then randomly return the label
+            if random.random() > 0.5:
+                return 1
+            else:
+                return 0
 
     def delete_topic_words(self,X):
         colums = X.columns
@@ -239,11 +246,11 @@ def ablation_data_augmentation():
 if __name__ == '__main__':
    # train_and_score_albert()
    # train_and_score_bert()
-   # test_albert()
-   # test_bert()
-   # ablation_albert("text")
-   # ablation_albert("albert")
-   ablation_data_augmentation()
+   test_albert()
+   test_bert()
+   # ablation_albert_text("text")
+   # ablation_albert_text("albert")
+   # ablation_data_augmentation()
 
 
 
