@@ -22,10 +22,10 @@ shared task 2(https://www.biendata.com/competition/chip2019/).
 - transformers-sklearn https://github.com/trueto/transformers_sklearn
 
 ## ALBERT-QM
-ALBERT-QM is implemented as `class paper_approach` The main function of 
+ALBERT-QM is implemented as class `paper_approach` The main function of 
 file `run_models.py` is shown as following:
 
-```python# train_and_score_albert()
+```python
 if __name__ == '__main__':
    # train_and_score_albert()
    # train_and_score_bert()
@@ -54,8 +54,8 @@ Five models was compared with ALBERT-QM. To transform the train set into the inp
 
 ## Performance
 ### Best F1 of ALBERT-QM
-The model file size is 64.8MB.
-```bash
+The model file size is 64.8MB. The F1-score is 86.69%.
+```python
                 precision    recall  f1-score   support
 
            0     0.8705    0.8688    0.8696      1021
@@ -66,8 +66,8 @@ The model file size is 64.8MB.
 weighted avg     0.8670    0.8670    0.8670      2000
 ```
 ### Best F1 of BERT series
-The model file size is 393MB.
-```bash
+The model file size is 393MB. The F1-score is 88.78%.
+```python
                 precision    recall  f1-score   support
 
            0     0.8844    0.8913    0.8878      1021
@@ -79,7 +79,7 @@ weighted avg     0.8850    0.8850    0.8850      2000
 ```
 
 ### Best F1 of MatchZoo models
-```bash
+```python
               precision    recall  f1-score   support
 
            0     0.6481    0.4887    0.5572      1021
