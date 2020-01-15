@@ -1,5 +1,5 @@
 # albert_question_match
-This code is for paper "ALBERT-QM:An ALBERT Model Based Approach for 
+This code is for paper "ALBERT-QM:An ALBERT Model Based Method for 
 Chinese Health Related Question Matching"
 
 ## data source 
